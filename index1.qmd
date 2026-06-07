@@ -1,0 +1,1012 @@
+---
+title: "The Effect of Source Prestige on Percieved Credibility of Health Information"
+subtitle: "PSY 120L Reproducible Analysis Report"
+author: "Jayle Luu"
+date: "`r Sys.Date()`"
+format:
+  html:
+    theme: flatly
+    toc: true
+    embed-resources: true
+    fig-format: svg
+    font:
+      main: "Avenir Next LT Pro, Arial, sans-serif"
+    page-layout: full
+    code-tools: true
+
+editor: visual
+
+knitr:
+  opts_chunk:
+    echo: true
+    out.width: "100%"
+    fig.align: "center"
+---
+
+## About this Report
+
+This reproducible report documents the data preparation, variable construction, descriptive statistics, primary analyses, and figures for this study.
+
+The report is intended to accompany a manuscript-style research paper. It is not the full paper itself. Instead, it shows how the reported analyses were produced from the dataset using a transparent and reproducible Quarto workflow.
+
+## Study Overview
+
+This study examined whether source credibility perception of health information differed by need for cognition, trust in science, and their interaction.
+
+Independent: Need for Cognition (high, low)
+
+Moderating Variables:
+
+1\) Need for Cognition (high, low)
+
+2\) Trust in Science and Scientists (high, low)
+
+The dependent variable was source credibility.
+
+The primary analyses tested whether perception of source credibility was affected by prestige of information source with interest in moderating interaction with need for cognition and trust in science.
+
+# Set up the Report
+
+```{r}
+#| label: setup
+#| echo: true
+#| message: false
+#| warning: false
+
+# Set global chunk options for the entire document
+knitr::opts_chunk$set(
+  echo = TRUE,      # display code in output
+  message = FALSE,  # suppress package messages
+  warning = FALSE   # suppress warnings
+)
+
+# Prevent automatic conversion of strings to factors
+options(stringsAsFactors = FALSE)  # keep character variables as text
+```
+
+------------------------------------------------------------------------
+
+## **Introduction**
+
+------------------------------------------------------------------------
+
+## **Setup and Software Environment**
+
+This section loads the packages used for data preparation, scale construction, statistical modeling, estimated marginal means, and figures.
+
+**Load packages**
+
+```{r}
+#| label: packages
+#| echo: true
+#| message: false
+#| warning: false
+
+# Load data manipulation tools
+library(tidyverse)  # includes dplyr, readr, etc.
+
+# Load scale construction tools
+library(psych)  # functions for scale analysis
+
+# Load analysis tools
+library(afex)  # ANOVA models
+library(emmeans)  # estimated marginal means
+```
+
+------------------------------------------------------------------------
+
+## Data Source and Analysis Dataset
+
+The dataset was imported from the project `data` folder. The imported dataset was saved as `study_raw` so that the original file remained unchanged throughout the report.
+
+A smaller analysis dataset was then created for the current analyses. This dataset retained the study condition variables, demographic variables, Trust in Science items, Source Credibility items, and Need for Cognition items needed for variable preparation and analysis.
+
+**Load Data**
+
+```{r}
+#| label: load_data
+#| echo: true
+#| message: false
+#| warning: false
+
+# Load dataset from data folder
+data <- read_csv("PrestigeBias.csv")  # import CSV file into R
+
+# Preview the first few rows of the dataset
+head(data)  # displays first rows to confirm structure and values
+
+# Print all variable names in the dataset
+names(data)  # lists all column names for inspection
+```
+
+------------------------------------------------------------------------
+
+## Variable Preparation and Scale Construction 
+
+**Define the Study Variable List**
+
+```{r}
+#| label: define_vars
+#| echo: true
+#| message: false
+#| warning: false
+
+# Create a vector of variables included in the study
+study_vars <- c(
+  "condition",  # Prestige condition
+  "Gender",       # participant gender
+  "Age",       # participant age
+  "SCSIntelligent","SCSTrained","SCSHonest","SCSTrust","SCSExpert","SCSSelf","SCSHonorable","SCSInformed","SCSMoral","SCSCompetent","SCSEthical","SCSsensitive", "SCSbright", "SCSgenuine","SCSunderstanding", # Source Credibility Scale 
+  "NFC_1","NFC_2","NFC_3","NFC_4", "NFC_5","NFC_6",#Need for Cognition 
+  "TIS_1","TIS_2","TIS_3","TIS_4","TIS_5","TIS_6","TIS_7","TIS_8","TIS_9","TIS_10","TIS_11","TIS_12",
+  "TIS_13","TIS_14","TIS_15","TIS_16","TIS_17","TIS_18","TIS_19","TIS_20","TIS_21"  # Trust in Science Scale
+)
+
+# Check the number of variables in the list
+length(study_vars)  # confirms total number matches expected count
+```
+
+------------------------------------------------------------------------
+
+The import checks confirm that the dataset loaded successfully, show the number of rows and columns, and display the variable names available in the original dataset.
+
+**Create the analysis dataset**
+
+```{r}
+#| label: subset_data
+#| echo: true
+#| message: false
+#| warning: false
+
+# Subset the dataset to include only study variables
+lab_data <- data[, study_vars]  # keeps only selected variables
+
+# Confirm the dataset structure after subsetting
+names(lab_data)  # verifies correct variables are retained
+```
+
+The analysis dataset contains the variables required for the report. The checks confirm the number of selected variables, the dimensions of the analysis dataset, and the final variable names carried forward into the preparation and analysis sections.
+
+------------------------------------------------------------------------
+
+**Prepare the dataset**
+
+This section prepares the variables used in the primary analyses. The original imported dataset was left unchanged; all prepared variables were created in the working analysis dataset, `study_data`.
+
+```{r}
+# Convert all variables to numeric format
+
+
+# Summarize dataset to confirm conversion
+summary(lab_data)  # checks values and missing data
+```
+
+------------------------------------------------------------------------
+
+**Label the experimental condition**
+
+```{r}
+# Convert condition variable to labeled factor
+lab_data <- lab_data %>%
+  filter(!is.na(condition)) %>%
+  mutate(
+    condition = factor(
+      condition                   # original numeric variable
+    )
+  )
+
+# Verify condition counts
+lab_data %>%
+  count(condition)  # counts observations in each condition
+```
+
+------------------------------------------------------------------------
+
+**Create participant ID**
+
+```{r}
+#| label: create_id
+#| echo: true
+#| message: false
+#| warning: false
+
+# Create a unique ID for each participant
+lab_data <- lab_data %>%
+  mutate(id = row_number())  # assigns sequential ID values
+
+# Preview the ID variable
+lab_data %>% select(id) %>% head()  # confirms ID structure
+```
+
+------------------------------------------------------------------------
+
+**Reverse-code scale items\
+**Items requiring reverse coding were transformed before scale scores were computed. Because the items used a 1–6 response scale, reverse-coded items were created by subtracting each original item response from 7.
+
+```{r}
+#| label: reverse_code
+#| echo: true
+#| message: false
+#| warning: false
+
+# Reverse-code selected depression items
+lab_data <- lab_data %>%
+  mutate(
+    SCSIntelligentr  = 7 - SCSIntelligent,   
+    SCSHonestr  = 7 - SCSHonest,   
+    SCSHonorabler = 7 - SCSHonorable,  
+    SCSInformedr = 7 - SCSInformed,
+    SCSMoralr = 7 - SCSMoral,
+    SCSbrightr = 7 - SCSbright, 
+    NFC_3r = 5 - NFC_3,
+    NFC_4r = 5 - NFC_4,
+    TIS_1r = 5 - TIS_1,
+    TIS_2r = 5 - TIS_2, 
+    TIS_3r = 5 - TIS_3,
+    TIS_4r = 5 - TIS_4,
+    TIS_6r = 5 - TIS_6,
+    TIS_8r = 5 - TIS_8,
+    TIS_13r = 5 - TIS_13,
+    TIS_17r = 5 - TIS_17,
+    TIS_18r = 5 - TIS_18,
+    TIS_19r = 5 - TIS_19,
+    TIS_20r = 5 - TIS_20,
+    TIS_21r = 5 - TIS_21
+  )
+
+# Compare original and reversed values
+lab_data %>%
+  select(SCSIntelligent, SCSIntelligentr) %>%  # selects variables for comparison
+  head()  # displays first rows
+```
+
+------------------------------------------------------------------------
+
+**Define SCS Scale Items\
+**Scale item lists were defined and used to compute SCS, TIS, and NFC scale scores.
+
+```{r}
+#| label: define_scale
+#| echo: true
+#| message: false
+#| warning: false
+
+# Define SCS items
+SCS_items <- c(
+  "SCSIntelligentr","SCSTrained","SCSHonestr","SCSTrust","SCSExpert","SCSSelf","SCSHonorabler",
+  "SCSInformedr","SCSMoralr","SCSCompetent","SCSEthical","SCSsensitive",
+  "SCSbrightr","SCSgenuine","SCSunderstanding"
+)
+
+# Check that all items exist in dataset
+setNames(SCS_items %in% names(lab_data), SCS_items)  # verifies item presence
+```
+
+------------------------------------------------------------------------
+
+**Compute scale score**
+
+```{r}
+#| label: compute_scale
+#| echo: true
+#| message: false
+#| warning: false
+
+# Compute SCS scale as the row mean of items
+lab_data <- lab_data %>%
+  mutate(
+    SCS_scale = rowMeans(as.matrix(across(all_of(SCS_items))), na.rm = TRUE)  # calculates scale score
+  )
+
+# Check proportion of missing scale scores
+mean(is.na(lab_data$SCS_scale))  # should be close to 0
+
+
+# Check distribution and range of the scale
+summary(lab_data$SCS_scale)  # should fall within expected range
+```
+
+------------------------------------------------------------------------
+
+**Final check**
+
+```{r}
+#| label: final_check
+#| echo: true
+#| message: false
+#| warning: false
+
+# Check dataset dimensions
+dim(lab_data)  # confirms number of rows and columns
+
+# Check final variable names
+names(lab_data)  # confirms variables available for next steps
+```
+
+The scale-score checks confirm that the computed scale scores fall within the expected response range and show whether any scale scores are missing.
+
+------------------------------------------------------------------------
+
+**Define Need for Cognition Item Vector**
+
+```{r}
+#| label: define_Need for Cognition_items
+#| echo: true
+#| warning: false
+#| message: false
+
+# Create a vector listing all Need for Cognition items to include in the scale
+# Include reverse-coded versions (items ending in "r") where applicable
+
+NFC_items <- c(
+  "NFC_1", "NFC_2", "NFC_3r", "NFC_4r",
+  "NFC_5", "NFC_6"
+)
+
+```
+
+------------------------------------------------------------------------
+
+**Create Need for Cognition (NFC) Variable**
+
+```{r}
+#| label: compute_NFC_scale
+#| echo: true
+#| warning: false
+#| message: false
+
+# Add a new variable to the dataset
+lab_data <- lab_data %>%
+  mutate(
+    # Compute the Need for Cognition scale score as the average of the selected items
+    NFC_scale = rowMeans(
+      # Select only the Need for Cognition item columns using the NFC_items vector
+      as.matrix(across(all_of(NFC_items))),
+      # Calculate the mean using available items if some are missing
+      na.rm = TRUE
+    )
+  )
+```
+
+------------------------------------------------------------------------
+
+**Inspect NFC_scale (Missingness and Range)**
+
+```{r}
+#| label: check_NFC_scale
+#| echo: true
+#| warning: false
+#| message: false
+
+# Calculate the proportion of missing values in the Need for Cognition scale
+mean(is.na(lab_data$NFC_scale))
+
+# Display summary statistics for the Need for Cognition scale (min, quartiles, median, max)
+summary(lab_data$NFC_scale)
+```
+
+------------------------------------------------------------------------
+
+**Compute Median of NFC_scale**
+
+```{r}
+#| label: compute_NFC_median
+#| echo: true
+#| warning: false
+#| message: false
+
+# Compute the median value of the Need for Cognition scale
+median(lab_data$NFC_scale, na.rm = TRUE)
+
+```
+
+------------------------------------------------------------------------
+
+**Create NFC_msplit Variable**
+
+```{r}
+#| label: create_NFC_split
+#| echo: true
+#| warning: false
+#| message: false
+
+# Compute the median of the Need for Cognition  scale
+NFC_median <- median(lab_data$NFC_scale, na.rm = TRUE)
+
+# Add a new categorical variable based on the median split
+lab_data <- lab_data %>%
+  mutate(
+    # Classify scores at or below the median as "Low" and above the median as "High"
+    NFC_msplit = if_else(NFC_scale <= NFC_median, "Low", "High") %>%
+      # Convert to a factor with "Low" as the reference level
+      factor(levels = c("Low", "High"))
+  )
+
+```
+
+The median split created the Need for Cognition grouping variable used in the primary ANOVA models. The output reports the median value used for the split and the number of participants assigned to each Need for Cognition group.
+
+------------------------------------------------------------------------
+
+**Inspect NFC_msplit Classification**
+
+```{r}
+#| label: check_Need for Cognition_split
+#| echo: true
+#| warning: false
+#| message: false
+
+# Preview the continuous NFC scores alongside the new group labels
+lab_data %>%
+  select(NFC_scale, NFC_msplit) %>%  # Keep only the scale and split variables
+  head(10) %>%                      # Show the first 10 rows
+  knitr::kable()                   # Format as a table for display
+
+# Count the number of participants in each NFC group
+lab_data %>%
+  count(NFC_msplit) %>%            # Count observations in each group
+  knitr::kable()                  # Format as a table for display
+
+```
+
+------------------------------------------------------------------------
+
+**Compute internal consistency (alpha and omega)**
+
+Internal consistency was estimated for the Need for Cognition, Trust in science, and Source Credibility scales before the scale scores were used in the primary analyses.
+
+```{r}
+# Create item-only data frames for each scale
+SCS_item_df <- lab_data %>% select(all_of(SCS_items))
+NFC_item_df <- lab_data %>% select(all_of(NFC_items))
+
+# Compute internal consistency estimates (store results)
+SCS_alpha <- psych::alpha(SCS_item_df)
+SCS_omega <- psych::omega(SCS_item_df, plot = FALSE)
+
+NFC_alpha <- psych::alpha(NFC_item_df)
+NFC_omega <- psych::omega(NFC_item_df, plot = FALSE)
+
+# Print only alpha and omega coefficients
+tibble(
+  scale = c("Source Credibility", "Need for Cognition"),
+  alpha = c(
+    SCS_alpha$total$raw_alpha,
+    NFC_alpha$total$raw_alpha
+  ),
+  omega = c(
+    SCS_omega$omega.tot,
+    NFC_omega$omega.tot
+  )
+)
+```
+
+The reliability table reports Cronbach’s alpha and McDonald’s omega for each scale used in the analysis.
+
+**Descriptive Statistics (Continuous Variables)**
+
+This section summarizes the scale scores and sample composition before the primary hypothesis tests.
+
+```{r}
+#| label: descriptives_continuous
+#| echo: true
+#| warning: false
+#| message: false
+
+# Descriptive statistics for continuous scale variables
+psych::describe(
+  lab_data %>% select(SCS_scale, NFC_scale)
+) %>%
+  knitr::kable(digits = 2)
+```
+
+------------------------------------------------------------------------
+
+**Run correlation tests and inspect the output**
+
+*This section examines whether the scale scores are related to each other and visualizes those relationships using scatterplots.*
+
+```{r}
+#| label: correlation_test
+#| echo: true
+#| warning: false
+#| message: false
+
+# Correlations for the SCS and Need for Cognition scales
+psych::corr.test(
+  lab_data %>% select(SCS_scale, NFC_scale)
+)
+```
+
+------------------------------------------------------------------------
+
+**Generate a scatterplot with axis labels**
+
+```{r}
+#| label: correlation_plot
+#| echo: true
+#| warning: false
+#| message: false
+
+# Scatterplots with labeled axes
+ggplot(lab_data, aes(x = NFC_scale, y = SCS_scale)) +
+  geom_point() +
+  labs(
+    x = "Need for Cognition Scale Score",
+    y = "Source Credibility Scale Score"
+  )
+```
+
+------------------------------------------------------------------------
+
+## Primary Analyses
+
+This section reports the primary analyses used to test whether mood condition, neuroticism group, and their interaction predicted depression and anxiety scores.
+
+Two 2 × 2 ANOVA models were estimated. Both models used Source Credibility as the dependent variable. In both models, prestige condition was the independent variable. In the first model, need for cognition was the moderating variable and in the second, trust in science was the moderating variable.
+
+**Run the ANOVA for SCS**
+
+A 2 × 2 ANOVA tested whether Source Credibility scores differed by prestige condition, Need for Cognition group, and the prestige condition × Need for cognition group interaction.
+
+```{r}
+#| label: anova_model
+#| echo: true
+#| warning: false
+#| message: false
+
+# 2x2 between-subjects ANOVA predicting SCS scores
+# DV: SCS_scale
+# Factors: condition and NFC_msplit
+a1_SCS <- afex::aov_ez(
+  id = "id",
+  dv = "SCS_scale",
+  between = c("condition", "NFC_msplit"),
+  data = lab_data
+)
+
+# Print the ANOVA table
+a1_SCS
+```
+
+------------------------------------------------------------------------
+
+### Inspect marginal (overall) means and confidence intervals (Main effects / “group means”)
+
+```{r}
+#| label: marginal_means
+#| echo: true
+#| warning: false
+#| message: false
+
+# Marginal (group) means for prestige condition
+# Averaged across levels of Need for Cognition
+emmeans(a1_SCS, ~ condition)
+
+# Marginal (group) means for Need for Cognition
+# Averaged across levels of prestige condition
+emmeans(a1_SCS, ~ NFC_msplit)
+```
+
+The estimated means show the Source Credibility score pattern across prestige condition, Need for Cognition group, and their combined cells.
+
+------------------------------------------------------------------------
+
+### Inspect cell means and confidence intervals (Interaction Means)
+
+```{r}
+#| label: cell_means
+#| echo: true
+#| warning: false
+#| message: false
+
+# Raw estimated marginal means for each combination of prestige condition and Need for Cognition group
+emmeans(a1_SCS, ~ condition * NFC_msplit)
+```
+
+------------------------------------------------------------------------
+
+**Depression Bar Plot**
+
+```{r}
+#| label: interaction_plot_bar
+#| echo: true
+#| warning: false
+#| message: false
+
+# Depression interaction plot (bar + 95% CI)
+# This figure shows model-estimated mean SCS scores across prestige condition,
+# separately for low vs. high Need for Cognition, with 95% confidence intervals.
+
+p_SCS_bar <- ggplot(
+  as.data.frame(emmeans(a1_SCS, ~ condition * NFC_msplit)),  # cell means from the ANOVA model
+  aes(
+    x = condition,        # x-axis = experimental condition
+    y = emmean,          # y-axis = estimated mean depression score
+    fill = NFC_msplit    # fill color = Need for Cognition levels
+  )
+) +
+  geom_col(
+    position = position_dodge(width = 0.65),  # place Low vs. High side-by-side
+    width = 0.55,                              # width of each bar
+    color = "white"                            # white outlines for visual separation
+  ) +
+  geom_errorbar(
+    aes(
+      ymin = lower.CL,   # lower bound of 95% CI
+      ymax = upper.CL    # upper bound of 95% CI
+    ),
+    position = position_dodge(width = 0.65),  # align error bars with bars
+    width = 0.12,                              # width of error bar caps
+    linewidth = 0.7                            # thickness of error bars
+  ) +
+  labs(
+    x = "Source Visibility",        # x-axis label
+    y = "Source Credibility Score", # y-axis label
+    fill = "Need for Cognition"         # legend title
+  ) +
+  scale_fill_brewer(
+    palette = "Dark2"            # colorblind-friendly fill colors
+  ) +
+  scale_y_continuous(
+    breaks = 1:7                 # show all response scale values
+  ) +
+  coord_cartesian(
+    ylim = c(1, 7)               # display full 1–7 scale without clipping bars
+  ) +
+  theme_classic(
+    base_size = 14               # clean, publication-style theme
+  )
+
+print(p_SCS_bar)
+```
+
+------------------------------------------------------------------------
+
+### Save plot
+
+```{r}
+#| label: save_figure
+#| echo: true
+#| warning: false
+#| message: false
+
+# Create figures folder if needed
+if (!dir.exists("figures")) dir.create("figures")
+
+# Save whichever plots you want (SVG format for posters)
+ggsave("figures/Depression_bar_plot.svg",   plot = p_SCS_bar,   width = 7, height = 5)
+```
+
+------------------------------------------------------------------------
+
+Define Trust in Science Item Vector
+
+```{r}
+#| label: define_trustinscience_items
+#| echo: true
+#| warning: false
+#| message: false
+
+
+TIS_items <- c(
+  "TIS_1r", "TIS_2r", "TIS_3r", "TIS_4r",
+  "TIS_5", "TIS_6r", "TIS_7", "TIS_8r",
+  "TIS_9", "TIS_10", "TIS_11", "TIS_12","TIS_13r","TIS_14","TIS_15","TIS_16", "TIS_17r","TIS_18r","TIS_19r","TIS_20r","TIS_21r"
+)
+```
+
+Create TIS (TIS_scale) Variable
+
+```{r}
+#| label: compute_TIS_scale
+#| echo: true
+#| warning: false
+#| message: false
+
+# Add a new variable to the dataset
+lab_data <- lab_data %>%
+  mutate(
+    # Compute the TIS scale score as the average of the selected items
+    TIS_scale = rowMeans(
+      # Select only the TIS item columns using the neo_items vector
+      as.matrix(across(all_of(TIS_items))),
+      # Calculate the mean using available items if some are missing
+      na.rm = TRUE
+    )
+  )
+```
+
+Inspect TIS Scale
+
+```{r}
+#| label: check_TIS_scale
+#| echo: true
+#| warning: false
+#| message: false
+
+# Calculate the proportion of missing values in the TIS scale
+mean(is.na(lab_data$TIS_scale))
+
+# Display summary statistics for the TIS scale (min, quartiles, median, max)
+summary(lab_data$TIS_scale)
+```
+
+TIS Scale Median
+
+```{r}
+#| label: compute_TIS_median
+#| echo: true
+#| warning: false
+#| message: false
+
+# Compute the median value of the TIS scale
+median(lab_data$TIS_scale, na.rm = TRUE)
+
+```
+
+Create TIS_msplit
+
+```{r}
+#| label: create TIS_msplit
+#| echo: true
+#| warning: false
+#| message: false
+
+# Compute the median of the TIS scale
+TIS_median <- median(lab_data$TIS_scale, na.rm = TRUE)
+
+# Add a new categorical variable based on the median split
+lab_data <- lab_data %>%
+  mutate(
+    # Classify scores at or below the median as "Low" and above the median as "High"
+    TIS_msplit = if_else(TIS_scale <= TIS_median, "Low", "High") %>%
+      # Convert to a factor with "Low" as the reference level
+      factor(levels = c("Low", "High"))
+  )
+
+```
+
+Inspect TIS_msplit Classification
+
+```{r}
+#| label: check_TIS_split
+#| echo: true
+#| warning: false
+#| message: false
+
+# Preview the continuous TIS scores alongside the new group labels
+lab_data %>%
+  select(TIS_scale, TIS_msplit) %>%  # Keep only the scale and split variables
+  head(10) %>%                      # Show the first 10 rows
+  knitr::kable()                   # Format as a table for display
+
+# Count the number of participants in each TIS group
+lab_data %>%
+  count(TIS_msplit) %>%            # Count observations in each group
+  knitr::kable()                  # Format as a table for display
+
+```
+
+Compute Internal consistency
+
+```{r}
+SCS_item_df <- lab_data %>% select(all_of(SCS_items))
+TIS_item_df <- lab_data %>% select(all_of(TIS_items))
+
+# Compute internal consistency estimates (store results)
+SCS_alpha <- psych::alpha(SCS_item_df)
+SCS_omega <- psych::omega(SCS_item_df, plot = FALSE)
+
+TIS_alpha <- psych::alpha(TIS_item_df)
+TIS_omega <- psych::omega(TIS_item_df, plot = FALSE)
+
+# Print only alpha and omega coefficients
+tibble(
+  scale = c("Source Credibility Scale", "Trust in Science"),
+  alpha = c(
+    SCS_alpha$total$raw_alpha,
+    TIS_alpha$total$raw_alpha
+  ),
+  omega = c(
+    SCS_omega$omega.tot,
+    TIS_omega$omega.tot
+  )
+)
+```
+
+```{r}
+#| label: descriptives_continuous1
+#| echo: true
+#| warning: false
+#| message: false
+
+# Descriptive statistics for continuous scale variables
+psych::describe(
+  lab_data %>% select(SCS_scale, TIS_scale)
+) %>%
+  knitr::kable(digits = 2)
+```
+
+```{r}
+#| label: correlation_test1
+#| echo: true
+#| warning: false
+#| message: false
+
+# Correlations for the SCS and TIS scales
+psych::corr.test(
+  lab_data %>% select(SCS_scale, TIS_scale)
+)
+```
+
+Generate Scatterplot with axis labels
+
+```{r}
+#| label: correlation_plot1
+#| echo: true
+#| warning: false
+#| message: false
+
+# Scatterplots with labeled axes
+ggplot(lab_data, aes(x = TIS_scale, y = SCS_scale)) +
+  geom_point() +
+  labs(
+    x = "Trust in Science Scale Score",
+    y = "Source Credibility Scale Score"
+  )
+```
+
+Conduct ANOVA for SCS
+
+```{r}
+#| label: create_id1
+#| echo: true
+#| message: false
+#| warning: false
+
+# Create a unique ID for each participant
+lab_data <- lab_data %>%
+  mutate(id = row_number())  # assigns sequential ID values
+
+# Preview the ID variable
+lab_data %>% select(id) %>% head()  # confirms ID structure
+```
+
+## Trust in Science ANOVA
+
+A 2 × 2 ANOVA tested whether Source Credibility scores differed by prestige condition, Trust in Science group, and the prestige condition × Trust in Science group interaction.
+
+```{r}
+#| label: anova_model1
+#| echo: true
+#| warning: false
+#| message: false
+
+# 2x2 between-subjects ANOVA predicting SCS scores
+# DV: SCS_scale
+# Factors: prestige condition and TIS_msplit
+a2_SCS <- afex::aov_ez(
+  id = "id",
+  dv = "SCS_scale",
+  between = c("condition", "TIS_msplit"),
+  data = lab_data
+)
+
+# Print the ANOVA table
+a2_SCS
+```
+
+The ANOVA table reports the main effect of prestige condition, the main effect of Trust in Science group, and the prestige condition × Trust in Science group interaction for Source Credibility scores.
+
+### Inspect marginal (overall) means and confidence intervals (Main effects / “group means”)
+
+```{r}
+#| label: marginal_means1
+#| echo: true
+#| warning: false
+#| message: false
+
+# Marginal (group) means for prestige condition
+# Averaged across levels of SCS
+emmeans(a2_SCS, ~ condition)
+
+# Marginal (group) means for SCS
+# Averaged across levels of prestige condition
+emmeans(a2_SCS, ~ TIS_msplit)
+```
+
+The estimated means show the Source credibility score pattern across prestige condition, Trust in Science group, and their combined cells.
+
+### Inspect cell means and confidence intervals (Interaction Means)
+
+```{r}
+#| label: cell_means1
+#| echo: true
+#| warning: false
+#| message: false
+
+# Raw estimated marginal means for each combination of source visibility condition and TIS group
+emmeans(a2_SCS, ~ condition * TIS_msplit)
+```
+
+SCS Bar Plot
+
+```{r}
+#| label: interaction_plot_bar1
+#| echo: true
+#| warning: false
+#| message: false
+
+# Depression interaction plot (bar + 95% CI)
+# This figure shows model-estimated mean depression scores across mood condition,
+# separately for low vs. high neuroticism, with 95% confidence intervals.
+
+p_SCS_bar <- ggplot(
+  as.data.frame(emmeans(a2_SCS, ~ condition * TIS_msplit)),  # cell means from the ANOVA model
+  aes(
+    x = condition,        # x-axis = experimental condition
+    y = emmean,          # y-axis = estimated mean depression score
+    fill = TIS_msplit    # fill color = neuroticism levels
+  )
+) +
+  geom_col(
+    position = position_dodge(width = 0.65),  # place Low vs. High side-by-side
+    width = 0.55,                              # width of each bar
+    color = "white"                            # white outlines for visual separation
+  ) +
+  geom_errorbar(
+    aes(
+      ymin = lower.CL,   # lower bound of 95% CI
+      ymax = upper.CL    # upper bound of 95% CI
+    ),
+    position = position_dodge(width = 0.65),  # align error bars with bars
+    width = 0.12,                              # width of error bar caps
+    linewidth = 0.7                            # thickness of error bars
+  ) +
+  labs(
+    x = "Source Visibility Condition",        # x-axis label
+    y = "Source Credibility Scale ", # y-axis label
+    fill = "Trust in Science"         # legend title
+  ) +
+  scale_fill_brewer(
+    palette = "Dark2"            # colorblind-friendly fill colors
+  ) +
+  scale_y_continuous(
+    breaks = 1:7                 # show all response scale values
+  ) +
+  coord_cartesian(
+    ylim = c(1, 7)               # display full 1–7 scale without clipping bars
+  ) +
+  theme_classic(
+    base_size = 14               # clean, publication-style theme
+  )
+
+print(p_SCS_bar)
+```
+
+```{r}
+#| label: save_figure1
+#| echo: true
+#| warning: false
+#| message: false
+
+# Create figures folder if needed
+if (!dir.exists("figures")) dir.create("figures")
+
+# Save whichever plots you want (SVG format for posters)
+ggsave("figures/Depression_bar_plot.svg",   plot = p_SCS_bar,   width = 7, height = 5)
+```
+
+## Results Summary
+
+We conducted a 2 (source prestige condition: high prestige vs. low prestige) x 2 (need for cognition: high need for cognition vs. low need for cognition) between-subjects ANOVA on perceived source credibility. Results for source prestige were not statistically significant, F(1,56) = 0.74, p=0.392, η2=0.13, such that participants in the high prestige condition reported the same compared to those in the low prestige condition. This indicates that participants in the high prestige condition had similar levels of perceived source credibility compared to participants in the low prestige condition. Results for need for cognition were not significant, F(1,56)= 0.01, p=0.925, η2\<0.001, such that participants in the high need for cognition condition reported the same compared to those in the low need for cognition condition. This suggests that participants in the high need for cognition condition had similar levels of perceived source credibility compared to participants in the low need for cognition condition. Results for the interaction between source prestige and need for cognition were not significant (1,56)=0.01, p=.942, η2\<0.001, as reflected in the cell means for each condition. This indicates that the effect of prestige on source credibility did not depend on the need for cognition, such that participants in the high prestige condition showed similar levels of perceived source credibility compared to participants in the low prestige condition. 
+
+## Reproducibility Information
+
+This section records the R version, operating system, and package versions used to render the report. Including this information helps another reader understand the software environment used to reproduce the analyses.
+
+```{r}
+
+sessionInfo()
+```
